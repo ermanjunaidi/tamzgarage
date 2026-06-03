@@ -1,0 +1,56 @@
+services:
+  # Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: bengkelpro-db
+    environment:
+      POSTGRES_USER: bengkelpro
+      POSTGRES_PASSWORD: bengkelpro123
+      POSTGRES_DB: bengkelpro
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bengkelpro"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Backend (Docker dev mode)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: bengkelpro-api
+    ports:
+      - "8082:8082"
+    environment:
+      PORT: "8082"
+      DATABASE_URL: postgres://bengkelpro:bengkelpro123@postgres:5432/bengkelpro?sslmode=disable
+      JWT_SECRET: bengkelpro-secret-key-2024
+      ALLOWED_ORIGINS: http://localhost:5173,http://localhost:3000
+    volumes:
+      - ./backend:/app
+      - /app/tmp
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Frontend (Docker dev mode)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: bengkelpro-web
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

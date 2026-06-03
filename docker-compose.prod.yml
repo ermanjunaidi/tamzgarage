@@ -1,0 +1,46 @@
+services:
+  # Production — single binary serves frontend + API
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: bengkelpro-prod
+    ports:
+      - "8082:8082"
+    environment:
+      PORT: "8082"
+      DATABASE_URL: postgres://bengkelpro:bengkelpro123@postgres:5432/bengkelpro?sslmode=disable
+      JWT_SECRET: bengkelpro-secret-key-2024
+      ALLOWED_ORIGINS: http://localhost:8082
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: bengkelpro-db
+    environment:
+      POSTGRES_USER: bengkelpro
+      POSTGRES_PASSWORD: bengkelpro123
+      POSTGRES_DB: bengkelpro
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bengkelpro"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Cloudflare Tunnel (optional — only when using make prod-tunnel)
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: bengkelpro-tunnel
+    command: tunnel --url http://localhost:8082
+    network_mode: host
+    restart: unless-stopped
+    profiles:
+      - tunnel
+
+volumes:
+  pgdata:
